@@ -1,3 +1,4 @@
+#include <stack>
 
 struct Predicate;
 struct Union;
@@ -11,7 +12,8 @@ struct GeneralizedRegex
 
 struct Predicate : GeneralizedRegex
 {
-        // TODO: determine callable type
+        // TODO: will this actually work?
+        std::function callable;
 
         void accept(GRVisitor * v) const;
         {
@@ -51,14 +53,34 @@ struct KleeneStar : GeneralizedRegex
         }
 };
 
+namespace nfa
+{
+
+struct Transition
+{
+        // TODO: how to represent epsilon transition?
+        std::function predicate;
+        // TODO: rename
+        State pointing_to;
+};
+
+using State = std::vector<Transition>;
+
+}; // namespace nfa
+
 struct GRVisitor
 {
+        std::stack<State> constructed {};
+
+        // NOTE: nicety: we know that predicates are going to be the leaf nodes of the syntax tree
         void visit(Predicate * p)
         {
+                constructed.push({{ .predicate =  callable, .pointing_to = {} });
         }
 
         void visit(Union * u)
         {
+                
         }
 
         void visit(Concatenation * c)
