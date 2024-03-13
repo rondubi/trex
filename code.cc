@@ -56,16 +56,39 @@ struct KleeneStar : GeneralizedRegex
 namespace nfa
 {
 
+struct MiniNfa;
+
 struct Transition
 {
-        // TODO: how to represent epsilon transition?
-        std::function<bool> predicate;
-        // TODO: rename
-        // TODO: change to a shared ptr
-        State pointing_to;
+        std::function<bool> callable;
+
+        std::shared_ptr<MiniNfa> pointed_to;
 };
 
 using State = std::vector<Transition>;
+
+struct MiniNfa
+{
+        State start_state {};
+        State end_state {};
+};
+
+std::shared_ptr<MiniNfa> make_epsilon()
+{
+        MiniNfa ret;
+        ret.start_state.push_back({ .callable = impl::EPSILON, .pointed_to = std::make_shared(ret.end_state) });
+        
+        return std::make_shared(ret);
+}
+
+// TODO: rename
+std::shared_ptr<MiniNfa> make_pred_transition(std::function callable)
+{
+        MiniNfa ret;
+        ret.start_state.push_back({ .callable = callable, .pointed_to = std::make_shared(ret.end_state) });
+
+        return std::make_shared(ret);
+}
 
 }; // namespace nfa
 
@@ -82,12 +105,11 @@ bool EPSILON(Args... args)
 
 struct GRVisitor
 {
-        std::stack<State> constructed {};
+        std::stack<> constructed {};
 
         // NOTE: nicety: we know that predicates are going to be the leaf nodes of the syntax tree
         void visit(Predicate * p)
         {
-                constructed.push({{ .predicate =  callable, .pointing_to = {} });
         }
 
         void visit(Union * u)
@@ -96,18 +118,18 @@ struct GRVisitor
                 u->lhs->accept(this);
                 u->rhs->accept(this);
 
-                const State end_state = {{}};
-                constructed.push({
-                        { .predicate = impl::EPSILON, .pointing_to = 
-                });
         }
 
         void visit(Concatenation * c)
         {
+                u->lhs->accept(this);
+                u->rhs->accept(this);
+
         }
 
         void visit(KleeneStar * k)
         {
+                u->operand->accept(this);
         }
 };
 
