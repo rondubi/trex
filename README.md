@@ -7,12 +7,14 @@ Regexes with arbitrary predicates
 ### Critical
 - Makefile
 - Finish writing NFA generation code
-- Converting NFAs to DFAs
-- Code to apply a regex to a collection
+- Print readable format NFA for debugging
+- Code to apply a regex to a collection,
+  working with NFAs
 - Tests
 
 ### Niceties
 - Pretty operators to construct regexes
 - Break up into multiple files
 - Additional regular expressions
+- Converting NFAs to DFAs
 
