@@ -1,3 +1,4 @@
+#include <iostream>
 #include <memory>
 #include <stack>
 
@@ -146,4 +147,30 @@ struct GRVisitor
 };
 
 // NOTE: all this shit is utterly fucked and will not type check. Unfuck the NFA type hierarchy
+
+void traverse_and_print(std::shared_ptr<nfa::MiniNfa> expr, int indent = 0)
+{
+        for (int i = 0; i < indent; ++i)
+                std::cout << "\t";
+
+        std::cout << "Start state has " << expr.start_state.size() << " out edges" << std::endl;
+        for (const auto [p, stage] : expr.start_state)
+        {
+                traverse_and_print(stage, indent + 1);
+                std::cout << std::endl;
+        }
+        std::cout << "End subexpr" << std::endl;
+}
+
+int main()
+{
+        GRVisitor v;
+        Predicate p1 { .callable = [](int x){ return x == 2; }, };
+        Predicate p2 { .callable = [](int x){ return x == 3; }, };
+        Union u { .lhs = &p1, .rhs = &p2, };
+        std::shared_ptr<nfa::MiniNfa> res = u.accept(&v);
+
+        traverse_and_print(res);
+        return 0;
+}
 
