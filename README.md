@@ -6,6 +6,7 @@ Regexes with arbitrary predicates
 
 ### Critical
 - Makefile
+- Type erasure for iterators
 - Finish writing NFA generation code
 - Print readable format NFA for debugging
 - Code to apply a regex to a collection,
