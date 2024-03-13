@@ -13,7 +13,7 @@ struct GeneralizedRegex
 struct Predicate : GeneralizedRegex
 {
         // TODO: will this actually work?
-        std::function callable;
+        std::function<bool> callable;
 
         void accept(GRVisitor * v) const;
         {
@@ -59,14 +59,26 @@ namespace nfa
 struct Transition
 {
         // TODO: how to represent epsilon transition?
-        std::function predicate;
+        std::function<bool> predicate;
         // TODO: rename
+        // TODO: change to a shared ptr
         State pointing_to;
 };
 
 using State = std::vector<Transition>;
 
 }; // namespace nfa
+
+namespace impl
+{
+
+template <typename... Args>
+bool EPSILON(Args... args)
+{
+        return true;
+}
+
+}; // namespace impl
 
 struct GRVisitor
 {
@@ -80,7 +92,14 @@ struct GRVisitor
 
         void visit(Union * u)
         {
-                
+                // TODO: determine if this can be a stack machine
+                u->lhs->accept(this);
+                u->rhs->accept(this);
+
+                const State end_state = {{}};
+                constructed.push({
+                        { .predicate = impl::EPSILON, .pointing_to = 
+                });
         }
 
         void visit(Concatenation * c)
