@@ -53,6 +53,17 @@ struct KleeneStar : GeneralizedRegex
         }
 };
 
+namespace impl
+{
+
+template <typename... Args>
+bool EPSILON(Args... args)
+{
+        return true;
+}
+
+}; // namespace impl
+
 namespace nfa
 {
 
@@ -91,17 +102,6 @@ std::shared_ptr<MiniNfa> make_pred_transition(std::function callable)
 }
 
 }; // namespace nfa
-
-namespace impl
-{
-
-template <typename... Args>
-bool EPSILON(Args... args)
-{
-        return true;
-}
-
-}; // namespace impl
 
 struct GRVisitor
 {
