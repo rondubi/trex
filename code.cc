@@ -74,23 +74,25 @@ bool EPSILON(Args... args)
 namespace nfa
 {
 
-struct MiniNfa;
+struct Transition;
+
+struct State
+{
+        bool accept = false;
+        std::vector<Transition> out_edges;
+};
 
 struct Transition
 {
         std::function<bool> callable;
-
-        std::shared_ptr<nfa::MiniNfa> pointed_to;
+        std::shared_ptr<State> to;
 };
-
-using State = std::vector<Transition>;
 
 struct MiniNfa
 {
-        State start_state {};
-        State end_state {};
+        State start_state{};
+        State end_state{};
 };
-
 
 }; // namespace nfa
 
@@ -100,49 +102,36 @@ struct GRVisitor
         std::shared_ptr<nfa::MiniNfa> visit(Predicate * p)
         {
                 nfa::MiniNfa ret;
-                ret.start_state.push_back({ .callable = p->callable, .pointed_to = std::make_shared(ret.end_state) });
 
-                return std::make_shared(ret);
+                ret.start_state.out_edges.push_back({
+                        .callable = p->callable,
+                        .to = std::make_shared<nfa::State>(ret.end_state),
+                });
+
+                return std::make_shared<nfa::MiniNfa>(ret);
         }
 
         std::shared_ptr<nfa::MiniNfa> visit(Union * u)
         {
-                // TODO: determine if this can be a stack machine
                 nfa::MiniNfa ret;
-                std::shared_ptr<nfa::MiniNfa> end = std::make_shared(ret.end_state);
+                std::shared_ptr<nfa::State> end_ptr = std::make_shared<nfa::State>(ret.end_state);
 
-                ret.start_state.push_back({ .callable = impl::EPSILON, .pointed_to = u->lhs->accept(this), });
-                ret.start_state.back().pointed_to->end_state = end;
-                ret.start_state.push_back({ .callable = impl::EPSILON, .pointed_to = u->rhs->accept(this), });
-                ret.start_state.back().pointed_to->end_state = end;
+                std::shared_ptr<nfa::MiniNfa> lhs = u->lhs->accept(this);
+                lhs->end_state.out_edges.push_back({ .callable = impl::EPSILON, .to = end_ptr, });
+                std::shared_ptr<nfa::MiniNfa> rhs = u->rhs->accept(this);
+                rhs->end_state.out_edges.push_back({ .callable = impl::EPSILON, .to = end_ptr, });
 
-                return ret;
+                return std::make_shared<nfa::MiniNfa>(ret);
         }
 
         std::shared_ptr<nfa::MiniNfa> visit(Concatenation * c)
         {
-                nfa::MiniNfa ret;
-                std::shared_ptr<nfa::MiniNfa> end = std::make_shared(ret.end_state);
-
-                ret.start_state.push_back({ .callable = impl::EPSILON, .pointed_to = u->lhs->accept(this), });
-                ret.start_state.back().pointed_to->end_state.push_back({ .callable = impl::EPSILON,
-                        .pointed_to = u->rhs->accept(this), });
-                ret.start_state.back().pointed_to->end_state.back().pointed_to->end_state = end;
-
-                return ret;
+                return NULL;
         }
 
         std::shared_ptr<nfa::MiniNfa> visit(KleeneStar * k)
         {
-                nfa::MiniNfa ret;
-                std::shared_ptr<nfa::MiniNfa> start = std::make_shared(ret.start_state);
-                std::shared_ptr<nfa::MiniNfa> end = std::make_shared(ret.end_state);
-
-                ret.start_state.push_back({ .callable = impl::EPSILON, .pointed_to = u->operand->accept(this), });
-                ret.start_state.back().pointed_to->end_state = end;
-                
-
-                return ret;
+                return NULL;
         }
 };
 
@@ -153,7 +142,8 @@ void traverse_and_print(std::shared_ptr<nfa::MiniNfa> expr, int indent = 0)
         for (int i = 0; i < indent; ++i)
                 std::cout << "\t";
 
-        std::cout << "Start state has " << expr.start_state.size() << " out edges" << std::endl;
+        std::cout << "Start state has " << expr.start_state.size()
+                  << " out edges" << std::endl;
         for (const auto [p, stage] : expr.start_state)
         {
                 traverse_and_print(stage, indent + 1);
@@ -165,12 +155,18 @@ void traverse_and_print(std::shared_ptr<nfa::MiniNfa> expr, int indent = 0)
 int main()
 {
         GRVisitor v;
-        Predicate p1 { .callable = [](int x){ return x == 2; }, };
-        Predicate p2 { .callable = [](int x){ return x == 3; }, };
-        Union u { .lhs = &p1, .rhs = &p2, };
+        Predicate p1{
+                .callable = [](int x) { return x == 2; },
+        };
+        Predicate p2{
+                .callable = [](int x) { return x == 3; },
+        };
+        Union u{
+                .lhs = &p1,
+                .rhs = &p2,
+        };
         std::shared_ptr<nfa::MiniNfa> res = u.accept(&v);
 
         traverse_and_print(res);
         return 0;
 }
-
