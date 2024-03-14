@@ -484,18 +484,13 @@ void test3_kleenestar(bool print = false)
 
         trex::nfa::MiniNfa<It_T> * res = k.accept(&v);
         res->end_state.accept = true;
-        if (print)
-        {
-                std::cout << "Constructed NFA" << std::endl;
-
-                trex::traverse_and_print<It_T>(&res->start_state);
-        }
 
         std::vector<int> vec{};
 
         for (int i = 0; i < 10; ++i)
         {
-                bool result = trex::apply_regex(vec.cbegin(), vec.cend(), res, print);
+                bool result = trex::apply_regex(
+                        vec.cbegin(), vec.cend(), res, print);
                 if (print)
                         printf("Regex 2* holds? %s\n", result ? "yes" : "no");
                 assert(result);
