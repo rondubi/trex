@@ -3,10 +3,12 @@
 #include <functional>
 #include <iostream>
 #include <memory>
+#include <optional>
 #include <set>
 #include <stack>
 
-// TODO: make sure that predicates take a const iterator_t
+namespace trex
+{
 
 namespace nfa
 {
@@ -49,7 +51,6 @@ struct GeneralizedRegex
 template <typename IteratorType>
 struct Predicate : GeneralizedRegex<IteratorType>
 {
-        // TODO: will this actually work?
         std::function<bool(IteratorType)> callable;
 
         Predicate(std::function<bool(IteratorType)> c_) : callable(c_) { }
@@ -114,17 +115,6 @@ struct KleeneStar : GeneralizedRegex<IteratorType>
         }
 };
 
-namespace impl
-{
-
-template <typename IteratorType>
-bool EPSILON(IteratorType unused_arg)
-{
-        return true;
-}
-
-}; // namespace impl
-
 namespace nfa
 {
 
@@ -141,7 +131,7 @@ struct State
 template <typename IteratorType>
 struct Transition
 {
-        std::function<bool(IteratorType)> callable;
+        std::optional<std::function<bool(IteratorType)>> callable;
         std::shared_ptr<State<IteratorType>> to;
 };
 
@@ -161,14 +151,16 @@ GRVisitor<IteratorType>::visit(const Predicate<IteratorType> * p)
 {
         std::cout << "Visiting predicate" << std::endl;
         nfa::MiniNfa<IteratorType> ret;
+        std::shared_ptr<nfa::State<IteratorType>> end_ptr = std::make_shared<nfa::State<IteratorType>>(ret.end_state);
 
         ret.start_state.out_edges.push_back({
                 .callable = p->callable,
-                .to = std::make_shared<nfa::State<IteratorType>>(ret.end_state),
+                .to = end_ptr,
         });
 
         std::cout << "Finished visiting predicate" << std::endl;
         assert(ret.start_state.out_edges.size() == 1);
+        assert(ret.start_state.out_edges[0].to == end_ptr);
 
         return std::make_shared<nfa::MiniNfa<IteratorType>>(ret);
 }
@@ -184,28 +176,36 @@ GRVisitor<IteratorType>::visit(const Union<IteratorType> * u)
         std::shared_ptr<nfa::MiniNfa<IteratorType>> lhs = u->lhs->accept(this);
         assert(lhs);
 
+        // Epsilon transition from LHS to end state
         lhs->end_state.out_edges.push_back({
-                .callable = impl::EPSILON<IteratorType>,
+                .callable = {},
                 .to = end_ptr,
         });
 
+        // Epsilon transition from start state to lhs
         ret.start_state.out_edges.push_back({
-                .callable = impl::EPSILON<IteratorType>,
+                .callable = {},
                 .to
                 = std::make_shared<nfa::State<IteratorType>>(lhs->start_state),
         });
 
         std::shared_ptr<nfa::MiniNfa<IteratorType>> rhs = u->rhs->accept(this);
+        assert(rhs);
+
+        // Epsilon transition from RHS to end state
         rhs->end_state.out_edges.push_back({
-                .callable = impl::EPSILON<IteratorType>,
+                .callable = {},
                 .to = end_ptr,
         });
 
+        // Epsilon transition from end state to rhs
         ret.start_state.out_edges.push_back({
-                .callable = impl::EPSILON<IteratorType>,
+                .callable = {},
                 .to
                 = std::make_shared<nfa::State<IteratorType>>(rhs->start_state),
         });
+
+        assert(ret.start_state.out_edges.size() == 2);
 
         return std::make_shared<nfa::MiniNfa<IteratorType>>(ret);
 }
@@ -233,8 +233,17 @@ void traverse_and_print(
         for (int i = 0; i < indent; ++i)
                 std::cout << "\t";
 
-        std::cout << "Start state has " << state->out_edges.size()
-                  << " out edges" << std::endl;
+        std::cout << "State has " << state->out_edges.size()
+                  << " out edges";
+
+        int count_epsilon = 0;
+        for (const auto [p, stage] : state->out_edges)
+                if (!p)
+                        ++count_epsilon;
+        std::cout << ", " << count_epsilon << " of these are epsilon transitions" << std::endl;
+
+        if (state->accept)
+                std::cout << "This is an accept state" << std::endl;
         for (const auto [p, stage] : state->out_edges)
                 traverse_and_print<IteratorType>(stage, indent + 1);
 
@@ -245,27 +254,46 @@ void traverse_and_print(
 }
 
 template <typename IteratorType>
-bool apply_regex(const IteratorType begin, const IteratorType end, std::shared_ptr<nfa::MiniNfa<IteratorType>> regex)
+bool apply_regex(
+        const IteratorType begin,
+        const IteratorType end,
+        std::shared_ptr<nfa::MiniNfa<IteratorType>> regex)
 {
         using Position = std::shared_ptr<nfa::State<IteratorType>>;
 
-        std::set<Position> positions = {std::make_shared<nfa::State<IteratorType>>(regex->start_state)};
+        std::set<Position> positions = {
+                std::make_shared<nfa::State<IteratorType>>(regex->start_state)};
+        for (auto [transition_predicate, eps_pos] :
+             regex->start_state.out_edges)
+        {
+                if (!transition_predicate)
+                        positions.insert(eps_pos);
+        }
 
         for (IteratorType it = begin; it != end; ++it)
         {
                 std::cout << "Regex application iteration" << std::endl;
+                std::cout << "Currently at " << positions.size() << " positions"
+                          << std::endl;
                 std::set<Position> next_positions;
                 for (const Position pos : positions)
                 {
-                        for (const auto [predicate, next_pos] : pos->out_edges)
-                                if (predicate(it))
+                        for (const auto [transition_predicate, next_pos] :
+                             pos->out_edges)
+                        {
+                                if (!transition_predicate
+                                    || transition_predicate.value()(it))
                                         next_positions.insert(next_pos);
+                        }
                 }
 
                 assert(next_positions.size());
 
                 positions = next_positions;
         }
+        std::cout << "Finished iteration" << std::endl;
+        std::cout << "Currently at " << positions.size() << " positions"
+                  << std::endl;
 
         for (const Position end_pos : positions)
                 if (end_pos->accept)
@@ -274,27 +302,52 @@ bool apply_regex(const IteratorType begin, const IteratorType end, std::shared_p
         return false;
 }
 
+}; // namespace trex
+
+void test1()
+{
+        using It_T = std::vector<int>::const_iterator;
+
+        trex::GRVisitor<It_T> v;
+        trex::Predicate<It_T> p1([](It_T x) { return *x == 2; });
+        trex::Predicate<It_T> p2([](It_T x) { return *x == 3; });
+        trex::Union u(&p1, &p2);
+
+        std::shared_ptr<trex::nfa::MiniNfa<It_T>> res = u.accept(&v);
+        res->end_state.accept = true;
+        std::cout << "Constructed NFA" << std::endl;
+
+        trex::traverse_and_print<It_T>(
+                std::make_shared<trex::nfa::State<It_T>>(res->start_state));
+
+        std::vector<int> vec{2};
+
+        bool result = trex::apply_regex(vec.cbegin(), vec.cend(), res);
+        printf("Regex 2 | 3 holds? %s\n", result ? "yes" : "no");
+        assert(result);
+}
+
 int main()
 {
         using It_T = std::vector<int>::const_iterator;
 
-        GRVisitor<It_T> v;
-        Predicate<It_T> p1([](It_T x) { return *x == 2; });
-        Predicate<It_T> p2([](It_T x) { return *x == 3; });
-        Union u(&p1, &p2);
+        trex::GRVisitor<It_T> v;
+        trex::Predicate<It_T> p([](It_T x) { return *x == 2; });
 
-        std::shared_ptr<nfa::MiniNfa<It_T>> res = u.accept(&v);
+        std::shared_ptr<trex::nfa::MiniNfa<It_T>> res = p.accept(&v);
         res->end_state.accept = true;
         std::cout << "Constructed NFA" << std::endl;
 
-        traverse_and_print<It_T>(
-                std::make_shared<nfa::State<It_T>>(res->start_state));
+        trex::traverse_and_print<It_T>(
+                std::make_shared<trex::nfa::State<It_T>>(res->start_state));
 
-        std::vector<int> vec {2, 3};
-        
-        bool result = apply_regex(vec.cbegin(), vec.cend(), res);
-        printf("Regex 2 | 3 holds? %s\n", result ? "yes" : "no");
+        /*
+        std::vector<int> vec{2};
+
+        bool result = trex::apply_regex(vec.cbegin(), vec.cend(), res);
+        printf("Regex 2 holds? %s\n", result ? "yes" : "no");
         assert(result);
+        */
+
         return 0;
 }
-
