@@ -499,6 +499,34 @@ void test3_kleenestar(bool print = false)
         }
 }
 
+void test4_compose(bool print = false)
+{
+        using It_T = std::vector<int>::const_iterator;
+
+        trex::GRVisitor<It_T> v;
+        trex::Predicate<It_T> p1([](It_T x) { return *x == 2; });
+        trex::Predicate<It_T> p2([](It_T x) { return *x == 3; });
+        trex::Concatenation c(&p1, &p2);
+        trex::KleeneStar k(&c);
+
+        trex::nfa::MiniNfa<It_T> * res = k.accept(&v);
+        res->end_state.accept = true;
+
+        std::vector<int> vec{2, 3};
+
+        for (int i = 0; i < 10; ++i)
+        {
+                bool result = trex::apply_regex(
+                        vec.cbegin(), vec.cend(), res, print);
+                if (print)
+                        printf("Regex (2 3)* holds? %s\n", result ? "yes" : "no");
+                assert(result);
+
+                vec.push_back(2);
+                vec.push_back(3);
+        }
+}
+
 int main()
 {
         test0_predicate();
@@ -516,6 +544,10 @@ int main()
         test3_kleenestar();
 
         std::cout << "Finished test3 successfully" << std::endl;
+
+        test4_compose();
+
+        std::cout << "Finished test4 successfully" << std::endl;
 
         return 0;
 }
