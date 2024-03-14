@@ -232,7 +232,36 @@ template <typename IteratorType>
 nfa::MiniNfa<IteratorType> *
 GRVisitor<IteratorType>::visit(const KleeneStar<IteratorType> * k)
 {
-        return NULL;
+        auto * ret = new nfa::MiniNfa<IteratorType>();
+
+        // Epsilon transition from start state to end_state
+        ret->start_state.out_edges.push_back({
+                .callable = {},
+                .to = &ret->end_state,
+        });
+
+        nfa::MiniNfa<IteratorType> * operand = k->operand->accept(this);
+        assert(operand);
+
+        // Epsilon transition from start state to operand
+        ret->start_state.out_edges.push_back({
+                .callable = {},
+                .to = &operand->start_state,
+        });
+
+        // Epsilon transition from operand end state to start_state
+        operand->end_state.out_edges.push_back({
+                .callable = {},
+                .to = &ret->start_state,
+        });
+
+        // Epsilon transition from operand end state to start_state
+        operand->end_state.out_edges.push_back({
+                .callable = {},
+                .to = &ret->end_state,
+        });
+
+        return ret;
 }
 
 // NOTE: all this shit is utterly fucked and will not type check. Unfuck the NFA type hierarchy
@@ -445,6 +474,36 @@ void test2_concat(bool print = false)
         assert(result);
 }
 
+void test3_kleenestar(bool print = false)
+{
+        using It_T = std::vector<int>::const_iterator;
+
+        trex::GRVisitor<It_T> v;
+        trex::Predicate<It_T> p([](It_T x) { return *x == 2; });
+        trex::KleeneStar k(&p);
+
+        trex::nfa::MiniNfa<It_T> * res = k.accept(&v);
+        res->end_state.accept = true;
+        if (print)
+        {
+                std::cout << "Constructed NFA" << std::endl;
+
+                trex::traverse_and_print<It_T>(&res->start_state);
+        }
+
+        std::vector<int> vec{};
+
+        for (int i = 0; i < 10; ++i)
+        {
+                bool result = trex::apply_regex(vec.cbegin(), vec.cend(), res, print);
+                if (print)
+                        printf("Regex 2* holds? %s\n", result ? "yes" : "no");
+                assert(result);
+
+                vec.push_back(2);
+        }
+}
+
 int main()
 {
         test0_predicate();
@@ -458,6 +517,10 @@ int main()
         test2_concat();
 
         std::cout << "Finished test2 successfully" << std::endl;
+
+        test3_kleenestar();
+
+        std::cout << "Finished test3 successfully" << std::endl;
 
         return 0;
 }
