@@ -1,0 +1,7 @@
+# The binary
+code
+
+# Vim swap files
+*.swp
+*.swo
+
