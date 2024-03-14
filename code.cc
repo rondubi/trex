@@ -31,20 +31,20 @@ struct KleeneStar;
 template <typename IteratorType>
 struct GRVisitor
 {
-        std::shared_ptr<nfa::MiniNfa<IteratorType>>
+        nfa::MiniNfa<IteratorType> *
         visit(const Predicate<IteratorType> *);
-        std::shared_ptr<nfa::MiniNfa<IteratorType>>
+        nfa::MiniNfa<IteratorType> *
         visit(const Union<IteratorType> *);
-        std::shared_ptr<nfa::MiniNfa<IteratorType>>
+        nfa::MiniNfa<IteratorType> *
         visit(const Concatenation<IteratorType> *);
-        std::shared_ptr<nfa::MiniNfa<IteratorType>>
+        nfa::MiniNfa<IteratorType> *
         visit(const KleeneStar<IteratorType> *);
 };
 
 template <typename IteratorType>
 struct GeneralizedRegex
 {
-        virtual std::shared_ptr<nfa::MiniNfa<IteratorType>>
+        virtual nfa::MiniNfa<IteratorType> *
         accept(GRVisitor<IteratorType> * v) const = 0;
 };
 
@@ -55,7 +55,7 @@ struct Predicate : GeneralizedRegex<IteratorType>
 
         Predicate(std::function<bool(IteratorType)> c_) : callable(c_) { }
 
-        std::shared_ptr<nfa::MiniNfa<IteratorType>>
+        nfa::MiniNfa<IteratorType> *
         accept(GRVisitor<IteratorType> * v) const
         {
                 return v->visit(this);
@@ -74,7 +74,7 @@ struct Union : GeneralizedRegex<IteratorType>
         {
         }
 
-        std::shared_ptr<nfa::MiniNfa<IteratorType>>
+        nfa::MiniNfa<IteratorType> *
         accept(GRVisitor<IteratorType> * v) const
         {
                 return v->visit(this);
@@ -94,7 +94,7 @@ struct Concatenation : GeneralizedRegex<IteratorType>
         {
         }
 
-        std::shared_ptr<nfa::MiniNfa<IteratorType>>
+        nfa::MiniNfa<IteratorType> *
         accept(GRVisitor<IteratorType> * v) const
         {
                 return v->visit(this);
@@ -108,7 +108,7 @@ struct KleeneStar : GeneralizedRegex<IteratorType>
 
         KleeneStar(GeneralizedRegex<IteratorType> * o_) : operand(o_) { }
 
-        std::shared_ptr<nfa::MiniNfa<IteratorType>>
+        nfa::MiniNfa<IteratorType> *
         accept(GRVisitor<IteratorType> * v) const
         {
                 return v->visit(this);
@@ -132,7 +132,7 @@ template <typename IteratorType>
 struct Transition
 {
         std::optional<std::function<bool(IteratorType)>> callable;
-        std::shared_ptr<State<IteratorType>> to;
+        State<IteratorType> * to;
 };
 
 template <typename IteratorType>
@@ -146,76 +146,71 @@ struct MiniNfa
 
 // NOTE: nicety: we know that predicates are going to be the leaf nodes of the syntax tree
 template <typename IteratorType>
-std::shared_ptr<nfa::MiniNfa<IteratorType>>
+nfa::MiniNfa<IteratorType> *
 GRVisitor<IteratorType>::visit(const Predicate<IteratorType> * p)
 {
-        std::shared_ptr<nfa::MiniNfa<IteratorType>> ret = std::make_shared<nfa::MiniNfa<IteratorType>>();
+        auto * ret = new nfa::MiniNfa<IteratorType>();
 
         ret->start_state.out_edges.push_back({
                 .callable = p->callable,
-                .to = std::shared_ptr<nfa::State<IteratorType>>(&ret->end_state, [](auto x){return;}),
+                .to = &ret->end_state,
         });
 
         assert(ret->start_state.out_edges.size() == 1);
-        assert(ret->start_state.out_edges[0].to.get() == &ret->end_state);
+        assert(ret->start_state.out_edges[0].to == &ret->end_state);
 
         return ret;
 }
 
 template <typename IteratorType>
-std::shared_ptr<nfa::MiniNfa<IteratorType>>
+nfa::MiniNfa<IteratorType> *
 GRVisitor<IteratorType>::visit(const Union<IteratorType> * u)
 {
-        nfa::MiniNfa<IteratorType> ret;
-        std::shared_ptr<nfa::State<IteratorType>> end_ptr
-                = std::make_shared<nfa::State<IteratorType>>(ret.end_state);
+        auto * ret = new nfa::MiniNfa<IteratorType>();
 
-        std::shared_ptr<nfa::MiniNfa<IteratorType>> lhs = u->lhs->accept(this);
+        auto * lhs = u->lhs->accept(this);
         assert(lhs);
 
         // Epsilon transition from LHS to end state
         lhs->end_state.out_edges.push_back({
                 .callable = {},
-                .to = end_ptr,
+                .to = &ret->end_state,
         });
 
         // Epsilon transition from start state to lhs
-        ret.start_state.out_edges.push_back({
+        ret->start_state.out_edges.push_back({
                 .callable = {},
-                .to
-                = std::make_shared<nfa::State<IteratorType>>(lhs->start_state),
+                .to = &lhs->start_state,
         });
 
-        std::shared_ptr<nfa::MiniNfa<IteratorType>> rhs = u->rhs->accept(this);
-        assert(rhs);
+        auto * rhs = u->rhs->accept(this);
 
         // Epsilon transition from RHS to end state
         rhs->end_state.out_edges.push_back({
                 .callable = {},
-                .to = end_ptr,
+                .to = &ret->end_state,
         });
 
         // Epsilon transition from end state to rhs
-        ret.start_state.out_edges.push_back({
+        ret->start_state.out_edges.push_back({
                 .callable = {},
-                .to
-                = std::make_shared<nfa::State<IteratorType>>(rhs->start_state),
+                .to = &rhs->start_state,
         });
 
-        assert(ret.start_state.out_edges.size() == 2);
+        assert(ret->start_state.out_edges.size() == 2);
 
-        return std::make_shared<nfa::MiniNfa<IteratorType>>(ret);
+        return ret;
 }
 
 template <typename IteratorType>
-std::shared_ptr<nfa::MiniNfa<IteratorType>>
+nfa::MiniNfa<IteratorType> *
 GRVisitor<IteratorType>::visit(const Concatenation<IteratorType> * c)
 {
         return NULL;
 }
 
 template <typename IteratorType>
-std::shared_ptr<nfa::MiniNfa<IteratorType>>
+nfa::MiniNfa<IteratorType> *
 GRVisitor<IteratorType>::visit(const KleeneStar<IteratorType> * k)
 {
         return NULL;
@@ -225,7 +220,7 @@ GRVisitor<IteratorType>::visit(const KleeneStar<IteratorType> * k)
 
 template <typename IteratorType>
 void traverse_and_print(
-        const std::shared_ptr<nfa::State<IteratorType>> state, int indent = 0)
+        const nfa::State<IteratorType> * state, int indent = 0)
 {
         for (int i = 0; i < indent; ++i)
                 std::cout << "\t";
@@ -257,12 +252,11 @@ template <typename IteratorType>
 bool apply_regex(
         const IteratorType begin,
         const IteratorType end,
-        std::shared_ptr<nfa::MiniNfa<IteratorType>> regex)
+        nfa::MiniNfa<IteratorType> * regex)
 {
-        using Position = std::shared_ptr<nfa::State<IteratorType>>;
+        using Position = nfa::State<IteratorType> *;
 
-        std::set<Position> positions = {
-                std::make_shared<nfa::State<IteratorType>>(regex->start_state)};
+        std::set<Position> positions = { &regex->start_state};
         for (auto [transition_predicate, eps_pos] :
              regex->start_state.out_edges)
         {
@@ -309,13 +303,12 @@ void test0_predicate(bool print = false)
         trex::GRVisitor<It_T> v;
         trex::Predicate<It_T> p([](It_T x) { return *x == 2; });
 
-        std::shared_ptr<trex::nfa::MiniNfa<It_T>> res = p.accept(&v);
-        assert(res->start_state.out_edges[0].to.get() == &res->end_state);
+        trex::nfa::MiniNfa<It_T> * res = p.accept(&v);
+        assert(res->start_state.out_edges[0].to == &res->end_state);
         res->end_state.accept = true;
 
         if (print)
-                trex::traverse_and_print<It_T>(
-                        std::make_shared<trex::nfa::State<It_T>>(res->start_state));
+                trex::traverse_and_print<It_T>(&res->start_state);
 
         std::vector<int> vec{2};
         std::vector<int> vec2{3};
@@ -331,7 +324,7 @@ void test0_predicate(bool print = false)
         assert(!result2);
 }
 
-void test1()
+void test1_union()
 {
         using It_T = std::vector<int>::const_iterator;
 
@@ -340,12 +333,11 @@ void test1()
         trex::Predicate<It_T> p2([](It_T x) { return *x == 3; });
         trex::Union u(&p1, &p2);
 
-        std::shared_ptr<trex::nfa::MiniNfa<It_T>> res = u.accept(&v);
+        trex::nfa::MiniNfa<It_T> * res = u.accept(&v);
         res->end_state.accept = true;
         std::cout << "Constructed NFA" << std::endl;
 
-        trex::traverse_and_print<It_T>(
-                std::make_shared<trex::nfa::State<It_T>>(res->start_state));
+        trex::traverse_and_print<It_T>(&res->start_state);
 
         std::vector<int> vec{2};
 
@@ -358,7 +350,7 @@ int main()
 {
         test0_predicate();
 
-        test1();
+        test1_union();
 
         return 0;
 }
