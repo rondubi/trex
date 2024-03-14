@@ -519,12 +519,57 @@ void test4_compose(bool print = false)
                 bool result = trex::apply_regex(
                         vec.cbegin(), vec.cend(), res, print);
                 if (print)
-                        printf("Regex (2 3)* holds? %s\n", result ? "yes" : "no");
+                        printf("Regex (2 3)* holds? %s\n",
+                               result ? "yes" : "no");
                 assert(result);
 
                 vec.push_back(2);
                 vec.push_back(3);
         }
+}
+
+void test5_regex_of_regexes(bool print = false)
+{
+        using str_it = std::string::const_iterator;
+
+        trex::GRVisitor<str_it> str_v;
+        trex::Predicate<str_it> p1([](str_it x) { return *x == 'a'; });
+        trex::Predicate<str_it> p2([](str_it x) { return *x == 'b'; });
+        trex::Concatenation c(&p1, &p2);
+        trex::KleeneStar k(&c);
+
+        // ab*
+        trex::nfa::MiniNfa<str_it> * string_regex = k.accept(&str_v);
+        string_regex->end_state.accept = true;
+
+        using vec_it = std::vector<std::string>::const_iterator;
+
+        trex::GRVisitor<vec_it> vec_v;
+        trex::Predicate<vec_it> ab_star(
+                [&](vec_it x) {
+                        return trex::apply_regex(
+                                x->cbegin(), x->cend(), string_regex, print);
+                });
+        trex::Predicate<vec_it> not_ab_star(
+                [&](vec_it x) {
+                        return !trex::apply_regex(
+                                x->cbegin(), x->cend(), string_regex, print);
+                });
+        trex::Concatenation vec_c(&ab_star, &not_ab_star);
+        trex::KleeneStar vec_k(&vec_c);
+
+        // All vectors of the form ("ab*", not ab*)*
+        trex::nfa::MiniNfa<vec_it> * regex2 = vec_k.accept(&vec_v);
+        regex2->end_state.accept = true;
+
+        std::vector<std::string> vec{"ab", "the"};
+
+        bool result
+                = trex::apply_regex(vec.cbegin(), vec.cend(), regex2, print);
+
+        if (print)
+                printf("Regex of regexes holds? %s\n", result ? "yes" : "no");
+        assert(result);
 }
 
 int main()
@@ -548,6 +593,10 @@ int main()
         test4_compose();
 
         std::cout << "Finished test4 successfully" << std::endl;
+
+        test5_regex_of_regexes();
+
+        std::cout << "Finished test5 successfully" << std::endl;
 
         return 0;
 }
