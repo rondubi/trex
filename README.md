@@ -6,6 +6,8 @@ Regexes with arbitrary predicates
 
 ### Critical
 - Finish writing NFA generation code
+- Concatenation
+- Kleene star
 - Tests
 
 ### Niceties
