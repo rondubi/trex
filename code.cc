@@ -2,7 +2,6 @@
 #include <cassert>
 #include <functional>
 #include <iostream>
-#include <memory>
 #include <optional>
 #include <set>
 #include <stack>
@@ -31,21 +30,18 @@ struct KleeneStar;
 template <typename IteratorType>
 struct GRVisitor
 {
-        nfa::MiniNfa<IteratorType> *
-        visit(const Predicate<IteratorType> *);
-        nfa::MiniNfa<IteratorType> *
-        visit(const Union<IteratorType> *);
-        nfa::MiniNfa<IteratorType> *
-        visit(const Concatenation<IteratorType> *);
-        nfa::MiniNfa<IteratorType> *
-        visit(const KleeneStar<IteratorType> *);
+        nfa::MiniNfa<IteratorType> * visit(const Predicate<IteratorType> *);
+        nfa::MiniNfa<IteratorType> * visit(const Union<IteratorType> *);
+        nfa::MiniNfa<IteratorType> * visit(const Concatenation<IteratorType> *);
+        nfa::MiniNfa<IteratorType> * visit(const KleeneStar<IteratorType> *);
 };
 
 template <typename IteratorType>
 struct GeneralizedRegex
 {
         virtual nfa::MiniNfa<IteratorType> *
-        accept(GRVisitor<IteratorType> * v) const = 0;
+        accept(GRVisitor<IteratorType> * v) const
+                = 0;
 };
 
 template <typename IteratorType>
@@ -55,8 +51,7 @@ struct Predicate : GeneralizedRegex<IteratorType>
 
         Predicate(std::function<bool(IteratorType)> c_) : callable(c_) { }
 
-        nfa::MiniNfa<IteratorType> *
-        accept(GRVisitor<IteratorType> * v) const
+        nfa::MiniNfa<IteratorType> * accept(GRVisitor<IteratorType> * v) const
         {
                 return v->visit(this);
         }
@@ -74,8 +69,7 @@ struct Union : GeneralizedRegex<IteratorType>
         {
         }
 
-        nfa::MiniNfa<IteratorType> *
-        accept(GRVisitor<IteratorType> * v) const
+        nfa::MiniNfa<IteratorType> * accept(GRVisitor<IteratorType> * v) const
         {
                 return v->visit(this);
         }
@@ -94,8 +88,7 @@ struct Concatenation : GeneralizedRegex<IteratorType>
         {
         }
 
-        nfa::MiniNfa<IteratorType> *
-        accept(GRVisitor<IteratorType> * v) const
+        nfa::MiniNfa<IteratorType> * accept(GRVisitor<IteratorType> * v) const
         {
                 return v->visit(this);
         }
@@ -108,8 +101,7 @@ struct KleeneStar : GeneralizedRegex<IteratorType>
 
         KleeneStar(GeneralizedRegex<IteratorType> * o_) : operand(o_) { }
 
-        nfa::MiniNfa<IteratorType> *
-        accept(GRVisitor<IteratorType> * v) const
+        nfa::MiniNfa<IteratorType> * accept(GRVisitor<IteratorType> * v) const
         {
                 return v->visit(this);
         }
@@ -219,20 +211,19 @@ GRVisitor<IteratorType>::visit(const KleeneStar<IteratorType> * k)
 // NOTE: all this shit is utterly fucked and will not type check. Unfuck the NFA type hierarchy
 
 template <typename IteratorType>
-void traverse_and_print(
-        const nfa::State<IteratorType> * state, int indent = 0)
+void traverse_and_print(const nfa::State<IteratorType> * state, int indent = 0)
 {
         for (int i = 0; i < indent; ++i)
                 std::cout << "\t";
 
-        std::cout << "State has " << state->out_edges.size()
-                  << " out edges";
+        std::cout << "State has " << state->out_edges.size() << " out edges";
 
         int count_epsilon = 0;
         for (const auto [p, stage] : state->out_edges)
                 if (!p)
                         ++count_epsilon;
-        std::cout << ", " << count_epsilon << " of these are epsilon transitions.";
+        std::cout << ", " << count_epsilon
+                  << " of these are epsilon transitions.";
 
         if (state->accept)
                 std::cout << " This is an accept state.";
@@ -256,7 +247,7 @@ bool apply_regex(
 {
         using Position = nfa::State<IteratorType> *;
 
-        std::set<Position> positions = { &regex->start_state};
+        std::set<Position> positions = {&regex->start_state};
         for (auto [transition_predicate, eps_pos] :
              regex->start_state.out_edges)
         {
@@ -268,7 +259,7 @@ bool apply_regex(
         {
                 // std::cout << "Regex application iteration" << std::endl;
                 // std::cout << "Currently at " << positions.size() << " positions"
-                          // << std::endl;
+                // << std::endl;
                 std::set<Position> next_positions;
                 for (const Position pos : positions)
                 {
@@ -285,7 +276,7 @@ bool apply_regex(
         }
         // std::cout << "Finished iteration" << std::endl;
         // std::cout << "Currently at " << positions.size() << " positions"
-                  // << std::endl;
+        // << std::endl;
 
         for (const Position end_pos : positions)
                 if (end_pos->accept)
@@ -315,7 +306,7 @@ void test0_predicate(bool print = false)
 
         bool result = trex::apply_regex(vec.cbegin(), vec.cend(), res);
         if (print)
-        printf("Regex 2 holds? %s\n", result ? "yes" : "no");
+                printf("Regex 2 holds? %s\n", result ? "yes" : "no");
         assert(result);
 
         bool result2 = trex::apply_regex(vec2.cbegin(), vec2.cend(), res);
@@ -354,4 +345,3 @@ int main()
 
         return 0;
 }
-
