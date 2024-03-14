@@ -199,7 +199,33 @@ template <typename IteratorType>
 nfa::MiniNfa<IteratorType> *
 GRVisitor<IteratorType>::visit(const Concatenation<IteratorType> * c)
 {
-        return NULL;
+        auto * ret = new nfa::MiniNfa<IteratorType>();
+
+        nfa::MiniNfa<IteratorType> * lhs = c->lhs->accept(this);
+        assert(lhs);
+
+        nfa::MiniNfa<IteratorType> * rhs = c->rhs->accept(this);
+        assert(rhs);
+
+        // Epsilon transition from start state to lhs
+        ret->start_state.out_edges.push_back({
+                .callable = {},
+                .to = &lhs->start_state,
+        });
+
+        // Epsilon transition from LHS to end state
+        lhs->end_state.out_edges.push_back({
+                .callable = {},
+                .to = &rhs->start_state,
+        });
+
+        // Epsilon transition from RHS to end state
+        rhs->end_state.out_edges.push_back({
+                .callable = {},
+                .to = &ret->end_state,
+        });
+
+        return ret;
 }
 
 template <typename IteratorType>
@@ -217,7 +243,8 @@ void traverse_and_print(const nfa::State<IteratorType> * state, int indent = 0)
         for (int i = 0; i < indent; ++i)
                 std::cout << "\t";
 
-        std::cout << "State " << state << " has " << state->out_edges.size() << " out edges";
+        std::cout << "State " << state << " has " << state->out_edges.size()
+                  << " out edges";
 
         int count_epsilon = 0;
         for (const auto [p, stage] : state->out_edges)
@@ -249,13 +276,14 @@ void do_all_epsilon_transitions(std::set<nfa::State<IteratorType> *> & states)
                 std::set<nfa::State<IteratorType> *> new_states;
                 for (const auto state : states)
                 {
-                        for (auto [transition_predicate, eps_pos] : state->out_edges)
+                        for (auto [transition_predicate, eps_pos] :
+                             state->out_edges)
                         {
                                 if (!transition_predicate)
                                         new_states.insert(eps_pos);
                         }
                 }
-                
+
                 for (const auto state : new_states)
                         states.insert(state);
 
@@ -377,10 +405,43 @@ void test1_union(bool print = false)
         }
 
         std::vector<int> vec{2};
+        std::vector<int> vec2{3};
 
         bool result = trex::apply_regex(vec.cbegin(), vec.cend(), res, print);
         if (print)
                 printf("Regex 2 | 3 holds? %s\n", result ? "yes" : "no");
+        assert(result);
+
+        bool result2
+                = trex::apply_regex(vec2.cbegin(), vec2.cend(), res, print);
+        if (print)
+                printf("Regex 2 | 3 holds? %s\n", result2 ? "yes" : "no");
+        assert(result2);
+}
+
+void test2_concat(bool print = false)
+{
+        using It_T = std::vector<int>::const_iterator;
+
+        trex::GRVisitor<It_T> v;
+        trex::Predicate<It_T> p1([](It_T x) { return *x == 2; });
+        trex::Predicate<It_T> p2([](It_T x) { return *x == 3; });
+        trex::Concatenation c(&p1, &p2);
+
+        trex::nfa::MiniNfa<It_T> * res = c.accept(&v);
+        res->end_state.accept = true;
+        if (print)
+        {
+                std::cout << "Constructed NFA" << std::endl;
+
+                trex::traverse_and_print<It_T>(&res->start_state);
+        }
+
+        std::vector<int> vec{2, 3};
+
+        bool result = trex::apply_regex(vec.cbegin(), vec.cend(), res, print);
+        if (print)
+                printf("Regex 23 holds? %s\n", result ? "yes" : "no");
         assert(result);
 }
 
@@ -393,6 +454,10 @@ int main()
         test1_union();
 
         std::cout << "Finished test1 successfully" << std::endl;
+
+        test2_concat();
+
+        std::cout << "Finished test2 successfully" << std::endl;
 
         return 0;
 }
