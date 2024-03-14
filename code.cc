@@ -272,9 +272,9 @@ bool apply_regex(
 
         for (IteratorType it = begin; it != end; ++it)
         {
-                std::cout << "Regex application iteration" << std::endl;
-                std::cout << "Currently at " << positions.size() << " positions"
-                          << std::endl;
+                // std::cout << "Regex application iteration" << std::endl;
+                // std::cout << "Currently at " << positions.size() << " positions"
+                          // << std::endl;
                 std::set<Position> next_positions;
                 for (const Position pos : positions)
                 {
@@ -287,13 +287,11 @@ bool apply_regex(
                         }
                 }
 
-                assert(next_positions.size());
-
                 positions = next_positions;
         }
-        std::cout << "Finished iteration" << std::endl;
-        std::cout << "Currently at " << positions.size() << " positions"
-                  << std::endl;
+        // std::cout << "Finished iteration" << std::endl;
+        // std::cout << "Currently at " << positions.size() << " positions"
+                  // << std::endl;
 
         for (const Position end_pos : positions)
                 if (end_pos->accept)
@@ -303,6 +301,35 @@ bool apply_regex(
 }
 
 }; // namespace trex
+
+void test0_predicate(bool print = false)
+{
+        using It_T = std::vector<int>::const_iterator;
+
+        trex::GRVisitor<It_T> v;
+        trex::Predicate<It_T> p([](It_T x) { return *x == 2; });
+
+        std::shared_ptr<trex::nfa::MiniNfa<It_T>> res = p.accept(&v);
+        assert(res->start_state.out_edges[0].to.get() == &res->end_state);
+        res->end_state.accept = true;
+
+        if (print)
+                trex::traverse_and_print<It_T>(
+                        std::make_shared<trex::nfa::State<It_T>>(res->start_state));
+
+        std::vector<int> vec{2};
+        std::vector<int> vec2{3};
+
+        bool result = trex::apply_regex(vec.cbegin(), vec.cend(), res);
+        if (print)
+        printf("Regex 2 holds? %s\n", result ? "yes" : "no");
+        assert(result);
+
+        bool result2 = trex::apply_regex(vec2.cbegin(), vec2.cend(), res);
+        if (print)
+                printf("Regex 3 holds? %s\n", result2 ? "yes" : "no");
+        assert(!result2);
+}
 
 void test1()
 {
@@ -329,23 +356,9 @@ void test1()
 
 int main()
 {
-        using It_T = std::vector<int>::const_iterator;
+        test0_predicate();
 
-        trex::GRVisitor<It_T> v;
-        trex::Predicate<It_T> p([](It_T x) { return *x == 2; });
-
-        std::shared_ptr<trex::nfa::MiniNfa<It_T>> res = p.accept(&v);
-        assert(res->start_state.out_edges[0].to.get() == &res->end_state);
-        res->end_state.accept = true;
-
-        trex::traverse_and_print<It_T>(
-                std::make_shared<trex::nfa::State<It_T>>(res->start_state));
-
-        std::vector<int> vec{2};
-
-        bool result = trex::apply_regex(vec.cbegin(), vec.cend(), res);
-        printf("Regex 2 holds? %s\n", result ? "yes" : "no");
-        assert(result);
+        test1();
 
         return 0;
 }
