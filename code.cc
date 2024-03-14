@@ -3,7 +3,10 @@
 #include <functional>
 #include <iostream>
 #include <memory>
+#include <set>
 #include <stack>
+
+// TODO: make sure that predicates take a const iterator_t
 
 namespace nfa
 {
@@ -165,6 +168,7 @@ GRVisitor<IteratorType>::visit(const Predicate<IteratorType> * p)
         });
 
         std::cout << "Finished visiting predicate" << std::endl;
+        assert(ret.start_state.out_edges.size() == 1);
 
         return std::make_shared<nfa::MiniNfa<IteratorType>>(ret);
 }
@@ -200,7 +204,7 @@ GRVisitor<IteratorType>::visit(const Union<IteratorType> * u)
         ret.start_state.out_edges.push_back({
                 .callable = impl::EPSILON<IteratorType>,
                 .to
-                = std::make_shared<nfa::State<IteratorType>>(lhs->start_state),
+                = std::make_shared<nfa::State<IteratorType>>(rhs->start_state),
         });
 
         return std::make_shared<nfa::MiniNfa<IteratorType>>(ret);
@@ -240,6 +244,36 @@ void traverse_and_print(
         std::cout << "End subexpr" << std::endl;
 }
 
+template <typename IteratorType>
+bool apply_regex(const IteratorType begin, const IteratorType end, std::shared_ptr<nfa::MiniNfa<IteratorType>> regex)
+{
+        using Position = std::shared_ptr<nfa::State<IteratorType>>;
+
+        std::set<Position> positions = {std::make_shared<nfa::State<IteratorType>>(regex->start_state)};
+
+        for (IteratorType it = begin; it != end; ++it)
+        {
+                std::cout << "Regex application iteration" << std::endl;
+                std::set<Position> next_positions;
+                for (const Position pos : positions)
+                {
+                        for (const auto [predicate, next_pos] : pos->out_edges)
+                                if (predicate(it))
+                                        next_positions.insert(next_pos);
+                }
+
+                assert(next_positions.size());
+
+                positions = next_positions;
+        }
+
+        for (const Position end_pos : positions)
+                if (end_pos->accept)
+                        return true;
+
+        return false;
+}
+
 int main()
 {
         using It_T = std::vector<int>::const_iterator;
@@ -249,11 +283,18 @@ int main()
         Predicate<It_T> p2([](It_T x) { return *x == 3; });
         Union u(&p1, &p2);
 
-        std::cout << "Constructed union" << std::endl;
         std::shared_ptr<nfa::MiniNfa<It_T>> res = u.accept(&v);
+        res->end_state.accept = true;
         std::cout << "Constructed NFA" << std::endl;
 
         traverse_and_print<It_T>(
                 std::make_shared<nfa::State<It_T>>(res->start_state));
+
+        std::vector<int> vec {2, 3};
+        
+        bool result = apply_regex(vec.cbegin(), vec.cend(), res);
+        printf("Regex 2 | 3 holds? %s\n", result ? "yes" : "no");
+        assert(result);
         return 0;
 }
+
