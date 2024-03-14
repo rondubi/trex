@@ -149,20 +149,17 @@ template <typename IteratorType>
 std::shared_ptr<nfa::MiniNfa<IteratorType>>
 GRVisitor<IteratorType>::visit(const Predicate<IteratorType> * p)
 {
-        std::cout << "Visiting predicate" << std::endl;
-        nfa::MiniNfa<IteratorType> ret;
-        std::shared_ptr<nfa::State<IteratorType>> end_ptr = std::make_shared<nfa::State<IteratorType>>(ret.end_state);
+        std::shared_ptr<nfa::MiniNfa<IteratorType>> ret = std::make_shared<nfa::MiniNfa<IteratorType>>();
 
-        ret.start_state.out_edges.push_back({
+        ret->start_state.out_edges.push_back({
                 .callable = p->callable,
-                .to = end_ptr,
+                .to = std::shared_ptr<nfa::State<IteratorType>>(&ret->end_state, [](auto x){return;}),
         });
 
-        std::cout << "Finished visiting predicate" << std::endl;
-        assert(ret.start_state.out_edges.size() == 1);
-        assert(ret.start_state.out_edges[0].to == end_ptr);
+        assert(ret->start_state.out_edges.size() == 1);
+        assert(ret->start_state.out_edges[0].to.get() == &ret->end_state);
 
-        return std::make_shared<nfa::MiniNfa<IteratorType>>(ret);
+        return ret;
 }
 
 template <typename IteratorType>
@@ -240,10 +237,13 @@ void traverse_and_print(
         for (const auto [p, stage] : state->out_edges)
                 if (!p)
                         ++count_epsilon;
-        std::cout << ", " << count_epsilon << " of these are epsilon transitions" << std::endl;
+        std::cout << ", " << count_epsilon << " of these are epsilon transitions.";
 
         if (state->accept)
-                std::cout << "This is an accept state" << std::endl;
+                std::cout << " This is an accept state.";
+
+        std::cout << std::endl;
+
         for (const auto [p, stage] : state->out_edges)
                 traverse_and_print<IteratorType>(stage, indent + 1);
 
@@ -335,19 +335,18 @@ int main()
         trex::Predicate<It_T> p([](It_T x) { return *x == 2; });
 
         std::shared_ptr<trex::nfa::MiniNfa<It_T>> res = p.accept(&v);
+        assert(res->start_state.out_edges[0].to.get() == &res->end_state);
         res->end_state.accept = true;
-        std::cout << "Constructed NFA" << std::endl;
 
         trex::traverse_and_print<It_T>(
                 std::make_shared<trex::nfa::State<It_T>>(res->start_state));
 
-        /*
         std::vector<int> vec{2};
 
         bool result = trex::apply_regex(vec.cbegin(), vec.cend(), res);
         printf("Regex 2 holds? %s\n", result ? "yes" : "no");
         assert(result);
-        */
 
         return 0;
 }
+
